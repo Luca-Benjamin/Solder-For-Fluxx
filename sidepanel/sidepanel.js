@@ -7,8 +7,8 @@
 
 // Configuration
 const CONFIG = {
-  apiEndpoint: 'http://localhost:3000/api/chat', // Backend proxy
-  generateFormEndpoint: 'http://localhost:3000/api/generate-form', // Form generation from docs
+  apiEndpoint: 'https://fluxxai-web-service.onrender.com/api/chat',
+  generateFormEndpoint: 'https://fluxxai-web-service.onrender.com/api/generate-form',
   maxRetries: 3
 };
 
