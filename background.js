@@ -26,9 +26,14 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   return false;
 });
 
+// Check if URL is a Fluxx site
+function isFluxxSite(url) {
+  return url?.includes('fluxxlabs.com') || url?.includes('fluxx.io');
+}
+
 // When a tab finishes loading a Fluxx page, ensure content script is injected
 chrome.tabs.onUpdated.addListener(async (tabId, changeInfo, tab) => {
-  if (changeInfo.status === 'complete' && tab.url?.includes('fluxxlabs.com')) {
+  if (changeInfo.status === 'complete' && isFluxxSite(tab.url)) {
     try {
       // Check if content script is already loaded
       await chrome.tabs.sendMessage(tabId, { type: 'PING' });
@@ -55,7 +60,7 @@ chrome.tabs.onUpdated.addListener(async (tabId, changeInfo, tab) => {
 chrome.tabs.onActivated.addListener(async (activeInfo) => {
   try {
     const tab = await chrome.tabs.get(activeInfo.tabId);
-    if (tab.url?.includes('fluxxlabs.com')) {
+    if (isFluxxSite(tab.url)) {
       console.log('[Fluxx AI BG] Activated Fluxx tab:', activeInfo.tabId);
     }
   } catch (e) {
