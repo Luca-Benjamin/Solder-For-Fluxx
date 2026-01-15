@@ -18,6 +18,7 @@ let state = {
   fluxxTabId: null,
   currentExport: null,
   themeNameFromUI: null,
+  modelNameFromUI: null,
   pendingOperations: null,
   isLoading: false,
   conversationHistory: [] // Track conversation for context
@@ -194,7 +195,7 @@ async function checkFluxxConnection() {
         }
 
         if (response && response.success) {
-          setConnected(response.data, response.themeNameFromUI);
+          setConnected(response.data, response.themeNameFromUI, response.modelNameFromUI);
           resolve(true);
         } else {
           setDisconnected(response?.error || 'Open a form theme');
@@ -208,13 +209,14 @@ async function checkFluxxConnection() {
   }
 }
 
-function setConnected(exportData, themeNameFromUI = null) {
+function setConnected(exportData, themeNameFromUI = null, modelNameFromUI = null) {
   // Get current form ID before updating state
   const oldFormId = getFormId();
 
   state.connected = true;
   state.currentExport = exportData;
   state.themeNameFromUI = themeNameFromUI;
+  state.modelNameFromUI = modelNameFromUI;
 
   // Check if we switched to a different form - clear conversation if so
   const newFormId = getFormId();
@@ -232,7 +234,10 @@ function setConnected(exportData, themeNameFromUI = null) {
   // Parse export info
   if (exportData && exportData.records && exportData.records.Stencil) {
     const stencil = exportData.records.Stencil[0];
-    elements.modelName.textContent = stencil.model_type || '-';
+
+    // Prefer UI model name over raw model_type (more user-friendly)
+    const modelName = modelNameFromUI || stencil.model_type || '-';
+    elements.modelName.textContent = modelName;
 
     // Prefer UI theme name over export JSON data (more accurate)
     const themeName = themeNameFromUI || exportData.name || stencil.name || '-';
@@ -254,6 +259,7 @@ function setDisconnected(reason) {
   state.connected = false;
   state.currentExport = null;
   state.themeNameFromUI = null;
+  state.modelNameFromUI = null;
   state.fluxxTabId = null;
   // Note: Don't clear conversation history on disconnect - page might just be refreshing
 
@@ -298,7 +304,7 @@ function handleMessage(message) {
       break;
     case 'EXPORT_UPDATED':
       if (message.data) {
-        setConnected(message.data, message.themeNameFromUI);
+        setConnected(message.data, message.themeNameFromUI, message.modelNameFromUI);
       }
       break;
     case 'IMPORT_COMPLETE':
@@ -612,7 +618,7 @@ async function refreshExport() {
     elements.refreshBtn.textContent = 'Refresh Export';
 
     if (response && response.success) {
-      setConnected(response.data, response.themeNameFromUI);
+      setConnected(response.data, response.themeNameFromUI, response.modelNameFromUI);
       addMessage('assistant', 'Export refreshed successfully.');
     } else {
       addMessage('error', 'Failed to refresh export.');

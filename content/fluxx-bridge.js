@@ -194,6 +194,106 @@ function getThemeNameFromUI(stencilId) {
   return null;
 }
 
+// Get model name from the sidebar - look at the dock section header
+function getModelNameFromUI(stencilId) {
+  // Method 1: Find stencil entry and get its containing dock section
+  if (stencilId) {
+    const selectors = [
+      `li.active.entry[data-model-id="${stencilId}"]`,
+      `li.entry[data-model-id="${stencilId}"]`,
+      `li[data-model-id="${stencilId}"]`
+    ];
+
+    let stencilEntry = null;
+    for (const selector of selectors) {
+      stencilEntry = document.querySelector(selector);
+      if (stencilEntry) break;
+    }
+
+    if (stencilEntry) {
+      // Find the dock section that contains this entry
+      const dockSection = stencilEntry.closest('div.dock-section, section.dock-section, .dock-section');
+      if (dockSection) {
+        // Look for section header with the model name
+        const sectionHeader = dockSection.querySelector('.dock-section-header h3, .dock-section-header span, h3, header span');
+        if (sectionHeader) {
+          const modelName = sectionHeader.textContent?.trim();
+          if (modelName) {
+            console.log('[Fluxx AI] Model name from dock section:', modelName);
+            return modelName;
+          }
+        }
+      }
+
+      // Alternative: Find the closest dock panel/card and get its title
+      const dockPanel = stencilEntry.closest('.dock-panel, .panel, .card');
+      if (dockPanel) {
+        const panelTitle = dockPanel.querySelector('.title, .panel-title, h2, h3');
+        if (panelTitle) {
+          const modelName = panelTitle.textContent?.trim();
+          if (modelName) {
+            console.log('[Fluxx AI] Model name from dock panel:', modelName);
+            return modelName;
+          }
+        }
+      }
+    }
+  }
+
+  // Method 2: Look for selected dock section header
+  const selectedSection = document.querySelector('.dock-section.selected, .dock-section.active');
+  if (selectedSection) {
+    const header = selectedSection.querySelector('h3, .dock-section-header');
+    if (header) {
+      const modelName = header.textContent?.trim();
+      if (modelName) {
+        console.log('[Fluxx AI] Model name from selected section:', modelName);
+        return modelName;
+      }
+    }
+  }
+
+  // Method 3: Look for breadcrumb or page header with model info
+  const breadcrumb = document.querySelector('.breadcrumb .current, .page-header h1, .admin-header h1');
+  if (breadcrumb) {
+    const text = breadcrumb.textContent?.trim();
+    if (text && !text.includes('Form Builder')) {
+      console.log('[Fluxx AI] Model name from breadcrumb:', text);
+      return text;
+    }
+  }
+
+  console.log('[Fluxx AI] Could not find model name from UI for stencil', stencilId);
+  return null;
+}
+
+// Convert model_type to a user-friendly display name
+function formatModelType(modelType) {
+  if (!modelType) return null;
+
+  // Common mappings
+  const modelNames = {
+    'GrantRequest': 'Grant Request',
+    'GenericTemplate': 'Portal Page',
+    'PortfolioOverview': 'Portfolio Overview',
+    'RequestReport': 'Request Report',
+    'RequestReview': 'Request Review',
+    'Organization': 'Organization',
+    'User': 'User',
+    'Program': 'Program',
+    'SubProgram': 'Sub Program',
+    'Initiative': 'Initiative',
+    'FundingSource': 'Funding Source'
+  };
+
+  if (modelNames[modelType]) {
+    return modelNames[modelType];
+  }
+
+  // Fallback: convert PascalCase to Title Case with spaces
+  return modelType.replace(/([A-Z])/g, ' $1').trim();
+}
+
 // Detect if we're on a form editor page
 function detectFormEditor() {
   const exportLink = findExportLink(currentStencilId);
@@ -509,11 +609,17 @@ async function handleGetExport(sendResponse) {
     }
 
     const themeNameFromUI = getThemeNameFromUI(currentStencilId);
+    const modelNameFromUI = getModelNameFromUI(currentStencilId);
+
+    // Get model_type from export for fallback formatting
+    const modelType = currentExport?.records?.Stencil?.[0]?.model_type;
+    const formattedModelType = formatModelType(modelType);
 
     sendResponse({
       success: true,
       data: currentExport,
-      themeNameFromUI: themeNameFromUI
+      themeNameFromUI: themeNameFromUI,
+      modelNameFromUI: modelNameFromUI || formattedModelType
     });
   } catch (err) {
     console.error('[Fluxx AI] Export error:', err);
@@ -525,7 +631,18 @@ async function handleRefreshExport(sendResponse) {
   try {
     currentExport = await downloadExport();
     const themeNameFromUI = getThemeNameFromUI(currentStencilId);
-    sendResponse({ success: true, data: currentExport, themeNameFromUI: themeNameFromUI });
+    const modelNameFromUI = getModelNameFromUI(currentStencilId);
+
+    // Get model_type from export for fallback formatting
+    const modelType = currentExport?.records?.Stencil?.[0]?.model_type;
+    const formattedModelType = formatModelType(modelType);
+
+    sendResponse({
+      success: true,
+      data: currentExport,
+      themeNameFromUI: themeNameFromUI,
+      modelNameFromUI: modelNameFromUI || formattedModelType
+    });
   } catch (err) {
     sendResponse({ success: false, error: err.message });
   }
