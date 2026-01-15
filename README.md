@@ -13,7 +13,7 @@ AI-powered form editing for Fluxx Grant Management System.
 ## Usage
 
 1. Navigate to your Fluxx instance
-2. Go to **Admin → Form Builder** and select a form/theme
+2. Go to **Admin Panel → Form Builder** and select a form/theme
 3. Click the Fluxx AI extension icon to open the side panel
 4. Describe the changes you want in natural language
 
@@ -40,7 +40,6 @@ You can also upload a PDF or Word document using the upload button - the AI will
 - Try refreshing the page
 
 **Changes not applying**
-- Ensure you have edit permissions on the Fluxx form
 - Check that you're in preview mode, not builder mode
 
 ## Feedback
