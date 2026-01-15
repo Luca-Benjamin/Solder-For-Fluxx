@@ -410,16 +410,13 @@ function showLoadingOverlay(message = 'Applying changes...') {
     <div class="fluxx-ai-loading-content">
       <div class="fluxx-ai-animation">
         <img src="${logoUrl}" class="fluxx-ai-logo" alt="Fluxx AI">
-        <svg class="fluxx-ai-wand" viewBox="0 0 64 64" fill="none" xmlns="http://www.w3.org/2000/svg">
-          <path d="M52 4L48 12L40 8L44 16L36 20L44 24L40 32L48 28L52 36L56 28L64 32L60 24L68 20L60 16L64 8L56 12L52 4Z" fill="#FFD700" class="wand-star"/>
-          <rect x="8" y="44" width="32" height="6" rx="2" transform="rotate(-45 8 44)" fill="#8B4513"/>
-          <rect x="6" y="42" width="8" height="10" rx="2" transform="rotate(-45 6 42)" fill="#FFD700"/>
-        </svg>
         <div class="fluxx-ai-sparkles">
           <span class="sparkle s1">✦</span>
           <span class="sparkle s2">✧</span>
           <span class="sparkle s3">✦</span>
           <span class="sparkle s4">✧</span>
+          <span class="sparkle s5">✦</span>
+          <span class="sparkle s6">✧</span>
         </div>
       </div>
       <div class="fluxx-ai-loading-text">${message}</div>
@@ -462,20 +459,9 @@ function showLoadingOverlay(message = 'Applying changes...') {
       object-fit: contain;
       position: absolute;
       left: 50%;
-      top: 55%;
+      top: 50%;
       transform: translate(-50%, -50%);
       border-radius: 12px;
-    }
-    .fluxx-ai-wand {
-      width: 44px;
-      height: 44px;
-      position: absolute;
-      left: 50%;
-      top: -5px;
-      transform: translateX(-50%);
-      animation: fluxx-ai-wand-wave 1s ease-in-out infinite;
-      transform-origin: center bottom;
-      filter: drop-shadow(0 2px 4px rgba(0,0,0,0.2));
     }
     .fluxx-ai-sparkles {
       position: absolute;
@@ -487,29 +473,27 @@ function showLoadingOverlay(message = 'Applying changes...') {
     }
     .sparkle {
       position: absolute;
-      font-size: 14px;
+      font-size: 16px;
       color: #FFD700;
-      animation: fluxx-ai-sparkle 1.5s ease-in-out infinite;
+      animation: fluxx-ai-sparkle 2s ease-in-out infinite;
       opacity: 0;
-      text-shadow: 0 0 4px #FFD700;
+      text-shadow: 0 0 6px #FFD700;
     }
-    .sparkle.s1 { top: 8px; left: 15px; animation-delay: 0s; }
-    .sparkle.s2 { top: 8px; right: 15px; animation-delay: 0.4s; }
-    .sparkle.s3 { top: 20px; left: 5px; animation-delay: 0.8s; }
-    .sparkle.s4 { top: 20px; right: 5px; animation-delay: 1.2s; }
+    .sparkle.s1 { top: 0; left: 50%; transform: translateX(-50%); animation-delay: 0s; }
+    .sparkle.s2 { top: 50%; right: 0; transform: translateY(-50%); animation-delay: 0.33s; }
+    .sparkle.s3 { bottom: 0; left: 50%; transform: translateX(-50%); animation-delay: 0.66s; }
+    .sparkle.s4 { top: 50%; left: 0; transform: translateY(-50%); animation-delay: 1s; }
+    .sparkle.s5 { top: 10px; right: 10px; animation-delay: 1.33s; }
+    .sparkle.s6 { bottom: 10px; left: 10px; animation-delay: 1.66s; }
     .fluxx-ai-loading-text {
       font-size: 18px;
       color: #333;
       font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
       font-weight: 500;
     }
-    @keyframes fluxx-ai-wand-wave {
-      0%, 100% { transform: translateX(-50%) rotate(-15deg); }
-      50% { transform: translateX(-50%) rotate(15deg); }
-    }
     @keyframes fluxx-ai-sparkle {
       0%, 100% { opacity: 0; transform: scale(0.5); }
-      50% { opacity: 1; transform: scale(1.3); }
+      50% { opacity: 1; transform: scale(1.2); }
     }
     /* Hide Fluxx modals during AI import */
     body.fluxx-ai-importing .reveal-modal,
@@ -628,23 +612,86 @@ async function applyAndUpload(operations, exportData) {
     }
 
     updateLoadingText('Processing import...');
-    await sleep(2000);
 
     // Step 6: Wait for the upload to process and look for success indicator
-    const refreshLink = await waitForElement('a.refresh-dashboard', 15000);
+    // Try multiple selectors as different Fluxx versions use different elements
+    const refreshSelectors = [
+      'a.refresh-dashboard',
+      'a[href*="refresh"]',
+      '.import-success a',
+      '.success a',
+      'a.btn-refresh'
+    ];
 
-    if (refreshLink) {
+    let refreshLink = null;
+    let uploadComplete = false;
+    const startTime = Date.now();
+    const timeout = 20000;
+
+    while (Date.now() - startTime < timeout) {
+      // Check for refresh link
+      for (const selector of refreshSelectors) {
+        try {
+          refreshLink = document.querySelector(selector);
+          if (refreshLink) {
+            console.log('[Fluxx AI] Found refresh link with selector:', selector);
+            break;
+          }
+        } catch (e) {}
+      }
+      if (refreshLink) break;
+
+      // Check for success text indicators in the modal/page
+      const modalText = document.querySelector('.reveal-modal, .modal, .import-panel, .body .show')?.innerText || '';
+      if (modalText.includes('Import successful') ||
+          modalText.includes('import complete') ||
+          modalText.includes('Successfully imported') ||
+          modalText.includes('Refresh to see')) {
+        console.log('[Fluxx AI] Found success text, proceeding with refresh');
+        uploadComplete = true;
+        break;
+      }
+
+      // Check if upload progress finished (look for 100% or completed state)
+      const progressBar = document.querySelector('.plupload_progress, .upload-progress, .progress-bar');
+      if (progressBar) {
+        const width = progressBar.style.width;
+        if (width === '100%') {
+          console.log('[Fluxx AI] Progress bar at 100%');
+          // Wait a bit more for server processing after upload completes
+          await sleep(2000);
+          uploadComplete = true;
+          break;
+        }
+      }
+
+      // Check for file uploaded indicator
+      const uploadedFile = document.querySelector('.plupload_file_status_done, .upload-complete, .file-uploaded');
+      if (uploadedFile) {
+        console.log('[Fluxx AI] Found upload complete indicator');
+        await sleep(2000);
+        uploadComplete = true;
+        break;
+      }
+
+      await sleep(300);
+    }
+
+    if (refreshLink || uploadComplete) {
       updateLoadingText('Refreshing page...');
       chrome.runtime.sendMessage({ type: 'IMPORT_COMPLETE' });
       currentExport = null;
       await sleep(500);
       window.location.reload();
     } else {
-      const errorMsg = document.querySelector('.import-error, .error-message, .alert-danger, .error');
-      if (errorMsg) {
-        throw new Error(errorMsg.textContent.trim() || 'Import failed');
+      // Check for error messages
+      const errorMsg = document.querySelector('.import-error, .error-message, .alert-danger, .error, .plupload_error');
+      if (errorMsg && errorMsg.textContent.trim()) {
+        throw new Error(errorMsg.textContent.trim());
       }
-      throw new Error('Import did not complete - no refresh link appeared');
+
+      // No success or error detected - don't auto-refresh, ask user
+      throw new Error('Import status unclear. Please check if changes applied and refresh manually if needed.');
     }
 
   } catch (err) {
