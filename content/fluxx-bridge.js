@@ -1221,9 +1221,27 @@ function applyOperations(exportData, operations) {
     throw new Error('Operations must be an array');
   }
 
+  if (!exportData || !exportData.records || !exportData.records.Stencil || !exportData.records.Stencil[0]) {
+    throw new Error('Invalid export data structure');
+  }
+
   const data = JSON.parse(JSON.stringify(exportData));
+
+  // Ensure json.elements exists
+  if (!data.records.Stencil[0].json) {
+    data.records.Stencil[0].json = { elements: [] };
+  }
+  if (!data.records.Stencil[0].json.elements) {
+    data.records.Stencil[0].json.elements = [];
+  }
   const elements = data.records.Stencil[0].json.elements;
+
+  // Ensure ModelAttribute array exists (some exports may not have it)
+  if (!data.records.ModelAttribute) {
+    data.records.ModelAttribute = [];
+  }
   const modelAttrs = data.records.ModelAttribute;
+
   const allWorkflowStates = (data.records.MachineState || []).map(s => s.name);
   const aliases = {};
 
