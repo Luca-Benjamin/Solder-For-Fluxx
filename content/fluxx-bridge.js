@@ -1308,19 +1308,25 @@ function applyOperations(exportData, operations) {
         if (!existingAttr) {
           if (isSelect || isMultiSelect) {
             // Select fields use multi_value attribute type
+            console.log('[Fluxx AI] Creating select field:', op.field_name, 'multi_allowed:', isMultiSelect);
             modelAttrs.push(createModelAttribute(op.field_name, op.field_name, 'multi_value', {
               multi_allowed: isMultiSelect
             }));
 
             // Add choices as ModelAttributeValue entries
             if (op.choices && Array.isArray(op.choices)) {
+              console.log('[Fluxx AI] Adding', op.choices.length, 'choices for', op.field_name);
               op.choices.forEach((choice, index) => {
                 modelAttrValues.push(createModelAttributeValue(op.field_name, choice, index + 1));
               });
+            } else {
+              console.log('[Fluxx AI] No choices array found for select field', op.field_name);
             }
           } else {
             modelAttrs.push(createModelAttribute(op.field_name, op.field_name, op.field_type || 'string'));
           }
+        } else {
+          console.log('[Fluxx AI] Field already exists:', op.field_name, '- skipping attribute creation');
         }
 
         newElement = createAttributeElement(op.field_name, op.label, {
