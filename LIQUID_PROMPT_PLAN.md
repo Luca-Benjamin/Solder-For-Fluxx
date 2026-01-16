@@ -237,26 +237,115 @@ Adding Liquid guidance to the system prompt will increase base tokens by ~500-80
 - Without guidance, Claude would fail these requests entirely
 - The patterns are reusable across many operations
 
-## Open Questions
+## Standard Relationships (Claude knows these)
 
-1. **Field name discovery:** How does Claude know the relationship field names (e.g., `rd_tab_dyn_model_4`)?
-   - Option A: User provides them
-   - Option B: Add tool to list available relationships
-   - Option C: Include common patterns in prompt
+Claude should recognize these standard relationship names and use them directly:
 
-2. **Schema awareness:** Should Claude have access to available fields on linked models?
-   - Currently no - user must specify field names
-   - Could add tool later if needed
+| User Says | Relationship Field | Model Type |
+|-----------|-------------------|------------|
+| "reports", "linked reports" | `model.rd_tab_request_reports` | RequestReport |
+| "reviews", "linked reviews" | `model.rd_tab_request_reviews` | RequestReview |
+| "transactions", "payments" | `model.rd_tab_request_transactions` | RequestTransaction |
+| "organization", "grantee org" | `model.program_organization` | Organization |
+| "users", "grantee users" | `model.grantee_user_ids` | User |
 
-3. **Validation:** Should we validate Liquid syntax before applying?
-   - Currently no - Fluxx will error on bad syntax
-   - Could add basic validation in fluxx-bridge.js
+## Workflow for Building Liquid Tables
+
+### Known Relationship (e.g., "show a table of reports")
+1. Claude recognizes "reports" → `model.rd_tab_request_reports`
+2. Claude asks: "What fields from the reports should I include? (e.g., state, due_at, total_expenses)"
+3. User provides field names
+4. Claude builds the Liquid table
+
+### Unknown Relationship (e.g., "show a table of compliance records")
+1. Claude doesn't recognize "compliance records" as a standard relationship
+2. Claude asks: "What is the relationship field name for compliance records? (e.g., rd_tab_dyn_model_4)"
+3. User provides: `rd_tab_dyn_model_4`
+4. Claude asks: "What fields should I include from those records?"
+5. User provides field names
+6. Claude builds the Liquid table
+
+### Example Conversation Flow
+
+**User:** "Add a table showing all linked reports"
+
+**Claude:** "I'll create a Liquid table for reports using `model.rd_tab_request_reports`. What fields from the reports should I display? For example: state, due_at, total_expenses, progress_rating"
+
+**User:** "state, due_at, and total_expenses"
+
+**Claude:** *Creates text element with Liquid table*
+
+---
+
+**User:** "Add a table showing compliance requirements"
+
+**Claude:** "I don't have a standard relationship for 'compliance requirements'. What is the relationship field name? (It will look something like `rd_tab_dyn_model_N` or similar)"
+
+**User:** "rd_tab_dyn_model_4"
+
+**Claude:** "Got it. What fields from the compliance records should I include in the table?"
+
+**User:** "evidence, target_date, condition_completed, state"
+
+**Claude:** *Creates text element with Liquid table*
+
+## System Prompt Addition (Updated)
+
+```
+## Liquid Templates
+
+For dynamic content in text elements, use Liquid syntax.
+
+**When to use Liquid:**
+- User asks to "show" or "display" related records in a table
+- User wants calculations (totals, balances, ratios)
+- User wants conditional formatting based on field values
+- User references "linked" or "related" data
+
+**Standard relationships (use directly):**
+- Reports: model.rd_tab_request_reports
+- Reviews: model.rd_tab_request_reviews
+- Transactions: model.rd_tab_request_transactions
+- Organization: model.program_organization
+- Users: model.grantee_user_ids
+
+**For standard relationships:** Ask user for field names on the related model.
+**For unknown relationships:** Ask user for BOTH the relationship field name AND the field names.
+
+**Basic syntax:**
+- Field: {{ model.field_name }}
+- Loop: {% for item in model.rd_tab_name %}...{% endfor %}
+- Conditional: {% if x == "y" %}...{% endif %}
+- Variable: {% assign total = 0 %}
+- Filters: | default: "N/A", | format_date, | currency_local, | plus:, | minus:
+
+**Table pattern:**
+<table style="border-collapse:collapse;">
+  <tr><th style="border:1px solid #666;padding:8px;background:#444;color:#fff;">Header</th></tr>
+  {% for item in model.rd_tab_name %}
+  <tr><td style="border:1px solid #666;padding:8px;">{{ item.field | default: "N/A" }}</td></tr>
+  {% endfor %}
+</table>
+
+**Important:**
+- Old Liquid engine - no comments, stick to if/for/assign
+- Always use inline styles for tables
+- Always provide fallbacks: {{ field | default: "N/A" }}
+```
+
+## Validation (Future)
+
+Could add basic validation in fluxx-bridge.js:
+- Check for balanced `{% %}` and `{{ }}` tags
+- Warn if relationship field doesn't exist in export
+- Currently: No validation - Fluxx will error on bad syntax
 
 ## Conclusion
 
 Liquid support requires:
-1. System prompt update with syntax guide and usage triggers
-2. Claude recognizing natural language patterns that imply Liquid
-3. No code changes needed - Liquid goes in text element `content`
+1. System prompt update with syntax guide and standard relationships
+2. Claude asking for field names when building tables
+3. Claude asking for relationship field name when it's not a standard one
+4. No code changes needed - Liquid goes in text element `content`
 
-The key insight is teaching Claude WHEN to use Liquid, not just HOW. The triggers ("show related records", "calculate total", "conditional formatting") are what transform a simple edit into a dynamic template.
+The key insight is teaching Claude WHEN to use Liquid and HOW to gather the information it needs (field names) from the user.
