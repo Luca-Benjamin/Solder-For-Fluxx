@@ -1507,6 +1507,62 @@ function applyOperations(exportData, operations) {
           }
         }
       }
+
+    } else if (op.type === 'clone_subtree') {
+      // Clone a subtree with transformations - backend does the heavy lifting
+      const sourceUid = op.source_uid;
+      const position = op.position || 'after';
+      const labelFind = op.label_find;
+      const labelReplace = op.label_replace;
+      const fieldSuffix = op.field_suffix || '';
+
+      // Find the source element
+      const sourceEl = findElementByUid(elements, sourceUid);
+      if (!sourceEl) {
+        console.warn('clone_subtree: source element not found');
+        continue;
+      }
+
+      // Deep clone
+      let cloned = JSON.parse(JSON.stringify(sourceEl));
+
+      // Apply transformations recursively
+      function transformElement(el) {
+        // Regenerate UID
+        el.uid = generateUid();
+
+        // Transform labels
+        if (labelFind && labelReplace) {
+          if (el.config?.label) {
+            el.config.label = el.config.label.replace(new RegExp(labelFind.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'gi'), labelReplace);
+          }
+          if (el.label) {
+            el.label = el.label.replace(new RegExp(labelFind.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'gi'), labelReplace);
+          }
+        }
+
+        // Add suffix to field names (attribute elements)
+        if (fieldSuffix && el.element_type === 'attribute' && el.name) {
+          el.name = el.name + fieldSuffix;
+        }
+
+        // Recurse into children
+        if (el.elements && Array.isArray(el.elements)) {
+          el.elements.forEach(transformElement);
+        }
+      }
+
+      transformElement(cloned);
+
+      // Insert the cloned element
+      const result = findParentOf(elements, sourceUid);
+      if (result && result.array) {
+        const idx = result.array.findIndex(e => e.uid === sourceUid);
+        if (idx !== -1) {
+          const insertIdx = position === 'before' ? idx : idx + 1;
+          result.array.splice(insertIdx, 0, cloned);
+        }
+      }
     }
   }
 

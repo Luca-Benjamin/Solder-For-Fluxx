@@ -267,6 +267,7 @@ body {
 .op-type.move { background: #dbeafe; color: #1e40af; }
 .op-type.delete { background: #fee2e2; color: #dc2626; }
 .op-type.bulk_replace { background: #f3e8ff; color: #7c3aed; }
+.op-type.clone_subtree { background: #d1fae5; color: #065f46; }
 .op-type.replace_subtree { background: #fef3c7; color: #b45309; }
 
 /* Bulk operation expandable details */

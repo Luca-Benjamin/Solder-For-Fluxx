@@ -558,8 +558,22 @@ function formatOperationDetails(op) {
     details.isBulk = true;
     details.bulkLabels = Array.isArray(op._labels) ? op._labels : [];
 
+  } else if (op.type === 'clone_subtree') {
+    // CLONE operation - efficient duplication
+    const sourceLabel = op._label || `(${op.source_uid?.substring(0, 8)}...)`;
+    details.summary = `Clone: ${sourceLabel}`;
+
+    if (op.label_find && op.label_replace) {
+      details.changes.push(`Labels: "${op.label_find}" → "${op.label_replace}"`);
+    }
+    if (op.field_suffix) {
+      details.changes.push(`Field names: append "${op.field_suffix}"`);
+    }
+    details.changes.push(`Position: ${op.position || 'after'} source`);
+    details.changes.push('All UIDs will be regenerated');
+
   } else if (op.type === 'replace_subtree') {
-    // COMPLEX STRUCTURAL operation
+    // REPLACE SUBTREE operation - full structure replacement
     const structureLabel = op.structure?.config?.label || op.structure?.label || 'subtree';
     const cleanLabel = structureLabel.replace(/<[^>]*>/g, '').substring(0, 50);
 

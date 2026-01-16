@@ -215,14 +215,33 @@ The tradeoff is fair: complex operations cost more tokens, simple operations sta
 3. **Phase 3:** Update system prompt with guidance for complex operations
 4. **Phase 4:** Test with various complex scenarios
 
+## Final Implementation
+
+Two operations were implemented:
+
+### clone_subtree (Recommended for duplication)
+```json
+{"type":"clone_subtree","source_uid":"...","position":"after","label_find":"Section 3","label_replace":"Section 3 (Year 2)","field_suffix":"_y2"}
+```
+- **Efficient**: Claude outputs small operation, frontend does the cloning
+- **Best for**: Duplicating sections with label/field name changes
+
+### replace_subtree (For full control)
+```json
+{"type":"replace_subtree","target_uid":"...","position":"after","structure":{...}}
+```
+- **Flexible**: Claude outputs complete transformed structure
+- **Best for**: Complex restructuring where clone_subtree isn't sufficient
+- **Note**: Can hit token limits with large structures
+
 ## Success Criteria
 
-- [ ] "Duplicate section X with suffix" works
-- [ ] "Merge sections X and Y" works
-- [ ] "Reorganize section X to match section Y" works
-- [ ] Simple operations still work and stay low-token
-- [ ] No new iteration/loop problems
-- [ ] Preview shows meaningful information for replace_subtree
+- [x] "Duplicate section X with suffix" works (clone_subtree)
+- [ ] "Merge sections X and Y" works (replace_subtree)
+- [ ] "Reorganize section X to match section Y" works (replace_subtree)
+- [x] Simple operations still work and stay low-token
+- [x] No new iteration/loop problems
+- [x] Preview shows meaningful information for both operations
 
 ## Open Questions
 
