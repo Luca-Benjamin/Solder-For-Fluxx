@@ -1274,7 +1274,10 @@ function applyOperations(exportData, operations) {
         if (!existingAttr) {
           modelAttrs.push(createModelAttribute(op.field_name, op.field_name, op.field_type || 'string'));
         }
-        newElement = createAttributeElement(op.field_name, op.label);
+        newElement = createAttributeElement(op.field_name, op.label, {
+          config: op.config,
+          visibility: op.visibility
+        });
       }
 
       if (newElement) {
@@ -1370,6 +1373,19 @@ function applyOperations(exportData, operations) {
           }
           if (op.config.open_states !== undefined) {
             el.config.open_states = op.config.open_states;
+          }
+          // Boolean field config (dropdown vs checkbox, custom labels)
+          if (op.config.widget_type !== undefined) {
+            el.config.widget_type = op.config.widget_type;
+          }
+          if (op.config.boolean_true_label !== undefined) {
+            el.config.boolean_true_label = op.config.boolean_true_label;
+          }
+          if (op.config.boolean_false_label !== undefined) {
+            el.config.boolean_false_label = op.config.boolean_false_label;
+          }
+          if (op.config.boolean_default !== undefined) {
+            el.config.boolean_default = op.config.boolean_default;
           }
         }
 
