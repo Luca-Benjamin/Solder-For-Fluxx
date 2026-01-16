@@ -21,7 +21,8 @@ let state = {
   modelNameFromUI: null,
   pendingOperations: null,
   isLoading: false,
-  conversationHistory: [] // Track conversation for context
+  sessionId: null, // Session ID for tool-based architecture
+  lastDebugInfo: null // Store debug info from last API call
 };
 
 // DOM Elements
@@ -51,9 +52,6 @@ async function init() {
 
   chrome.runtime.onMessage.addListener(handleMessage);
 
-  // Load persisted conversation history
-  await loadConversationHistory();
-
   // Recheck connection when switching tabs
   chrome.tabs.onActivated.addListener(async () => {
     await new Promise(r => setTimeout(r, 100));
@@ -67,65 +65,6 @@ async function init() {
   });
 
   await checkFluxxConnectionWithRetry();
-}
-
-// Get a unique identifier for the current form
-function getFormId() {
-  // Try stencil ID from export
-  const stencilId = state.currentExport?.records?.Stencil?.[0]?.id;
-  if (stencilId) return String(stencilId);
-
-  // Fallback: use theme name
-  if (state.themeNameFromUI) return state.themeNameFromUI.replace(/[^a-zA-Z0-9]/g, '_');
-
-  return null;
-}
-
-// Persist conversation history to survive page refreshes
-async function saveConversationHistory() {
-  try {
-    const formId = getFormId();
-    if (formId) {
-      await chrome.storage.session.set({
-        [`chat_${formId}`]: state.conversationHistory,
-        'currentFormId': formId
-      });
-    }
-  } catch (e) {
-    // Ignore storage errors
-  }
-}
-
-async function loadConversationHistory() {
-  try {
-    const result = await chrome.storage.session.get(['currentFormId']);
-    if (result.currentFormId) {
-      const chatResult = await chrome.storage.session.get([`chat_${result.currentFormId}`]);
-      const history = chatResult[`chat_${result.currentFormId}`];
-      if (history && Array.isArray(history)) {
-        state.conversationHistory = history;
-        // Restore chat UI
-        for (const msg of history) {
-          addMessage(msg.role === 'user' ? 'user' : 'assistant', msg.content, true);
-        }
-      }
-    }
-  } catch (e) {
-    // Ignore storage errors
-  }
-}
-
-async function clearConversationHistory() {
-  state.conversationHistory = [];
-  elements.messages.innerHTML = '';
-  try {
-    const formId = getFormId();
-    if (formId) {
-      await chrome.storage.session.remove([`chat_${formId}`, 'currentFormId']);
-    }
-  } catch (e) {
-    // Ignore storage errors
-  }
 }
 
 function setupEventListeners() {
@@ -213,18 +152,19 @@ function setConnected(exportData, themeNameFromUI = null, modelNameFromUI = null
   // Clear loading state
   setFormInfoLoading(false);
 
-  // Get current form ID before updating state
-  const oldFormId = getFormId();
+  // Check if we switched to a different form - clear session if so
+  const oldStencilId = state.currentExport?.records?.Stencil?.[0]?.id;
+  const newStencilId = exportData?.records?.Stencil?.[0]?.id;
 
   state.connected = true;
   state.currentExport = exportData;
   state.themeNameFromUI = themeNameFromUI;
   state.modelNameFromUI = modelNameFromUI;
 
-  // Check if we switched to a different form - clear conversation if so
-  const newFormId = getFormId();
-  if (oldFormId && newFormId && oldFormId !== newFormId) {
-    clearConversationHistory();
+  // If form changed, reset session and clear chat
+  if (oldStencilId && newStencilId && oldStencilId !== newStencilId) {
+    state.sessionId = null;
+    elements.messages.innerHTML = '';
   }
 
   // Update UI
@@ -331,8 +271,6 @@ async function sendMessage() {
   const text = elements.userInput.value.trim();
   if (!text || state.isLoading || !state.connected) return;
 
-  // Add user message to history first, then UI (which triggers save)
-  state.conversationHistory.push({ role: 'user', content: text });
   addMessage('user', text);
   elements.userInput.value = '';
 
@@ -345,7 +283,7 @@ async function sendMessage() {
       body: JSON.stringify({
         message: text,
         export: state.currentExport,
-        conversationHistory: state.conversationHistory.slice(-10) // Last 10 messages for context
+        sessionId: state.sessionId // Send session ID for tool-based architecture
       })
     });
 
@@ -355,12 +293,21 @@ async function sendMessage() {
 
     const data = await response.json();
 
+    // Store session ID from response
+    if (data.sessionId) {
+      state.sessionId = data.sessionId;
+    }
+
+    // Store debug info for download
+    if (data._debug) {
+      state.lastDebugInfo = data._debug;
+      console.log('Debug info available - press Ctrl+Shift+D to download');
+    }
+
     if (data.error) {
       addMessage('error', data.error);
     } else if (data.operations && Array.isArray(data.operations) && data.operations.length > 0) {
       const explanation = data.explanation || 'Here are the proposed changes:';
-      // Add to history before UI (which triggers save)
-      state.conversationHistory.push({ role: 'assistant', content: explanation });
       addMessage('assistant', explanation);
       showOperationsPreview(data.operations);
       state.pendingOperations = data.operations;
@@ -368,8 +315,6 @@ async function sendMessage() {
       addMessage('error', 'Invalid response format from AI. Please try again.');
     } else {
       const explanation = data.explanation || data.response || 'I couldn\'t determine what changes to make. Could you clarify?';
-      // Add to history before UI (which triggers save)
-      state.conversationHistory.push({ role: 'assistant', content: explanation });
       addMessage('assistant', explanation);
     }
   } catch (err) {
@@ -439,7 +384,7 @@ async function handleDocumentUpload(e) {
   }
 }
 
-function addMessage(type, content, isRestoring = false) {
+function addMessage(type, content) {
   const messageDiv = document.createElement('div');
   messageDiv.className = `message ${type}`;
 
@@ -458,11 +403,6 @@ function addMessage(type, content, isRestoring = false) {
 
   // Scroll to bottom
   elements.messages.scrollTop = elements.messages.scrollHeight;
-
-  // Save to storage (unless we're restoring from storage)
-  if (!isRestoring && type !== 'error') {
-    saveConversationHistory();
-  }
 }
 
 function escapeHtml(text) {
@@ -473,11 +413,28 @@ function escapeHtml(text) {
 
 // Operations Preview
 function showOperationsPreview(operations) {
-  const html = operations.map(op => {
+  const html = operations.map((op, idx) => {
     const details = formatOperationDetails(op);
+
+    // Expandable section for bulk operations
+    let bulkHtml = '';
+    if (details.isBulk && details.bulkUids.length > 0) {
+      const uidList = details.bulkUids.slice(0, 20).map(uid =>
+        `<li class="bulk-uid">${escapeHtml(uid.substring(0, 12))}...</li>`
+      ).join('');
+      const moreCount = details.bulkUids.length > 20 ? details.bulkUids.length - 20 : 0;
+      bulkHtml = `
+        <details class="bulk-details">
+          <summary>Show ${details.bulkUids.length} affected elements</summary>
+          <ul class="bulk-uid-list">${uidList}</ul>
+          ${moreCount > 0 ? `<div class="bulk-more">...and ${moreCount} more</div>` : ''}
+        </details>
+      `;
+    }
+
     return `
       <div class="op-item">
-        <span class="op-type ${op.type}">${op.type}</span>
+        <span class="op-type ${op.type}">${op.type.replace('_', ' ')}</span>
         <div class="op-details">
           <div class="op-summary">${escapeHtml(details.summary)}</div>
           ${details.changes.length > 0 ? `
@@ -485,6 +442,7 @@ function showOperationsPreview(operations) {
               ${details.changes.map(c => `<li>${escapeHtml(c)}</li>`).join('')}
             </ul>
           ` : ''}
+          ${bulkHtml}
         </div>
       </div>
     `;
@@ -581,6 +539,19 @@ function formatOperationDetails(op) {
     details.summary = `Delete element (${op.uid?.substring(0, 8)}...)`;
     details.changes.push('⚠️ This will also delete all children');
 
+  } else if (op.type === 'bulk_replace') {
+    // BULK REPLACE operation
+    const count = Array.isArray(op.uids) ? op.uids.length : 0;
+    if (op.find_color && op.replace_color) {
+      details.summary = `Change ${op.find_color} → ${op.replace_color} (${count} elements)`;
+    } else if (op.find && op.replace) {
+      details.summary = `Replace "${op.find}" → "${op.replace}" (${count} elements)`;
+    } else {
+      details.summary = `Bulk replace (${count} elements)`;
+    }
+    details.isBulk = true;
+    details.bulkUids = Array.isArray(op.uids) ? op.uids : [];
+
   } else {
     // Unknown operation type
     details.summary = `${op.type || 'Unknown'} operation`;
@@ -653,6 +624,58 @@ function setFormInfoLoading(loading) {
     elements.formInfo.classList.remove('loading');
   }
 }
+
+// Download debug info as file
+function downloadDebugInfo() {
+  if (!state.lastDebugInfo) {
+    alert('No debug info available. Send a message first.');
+    return;
+  }
+
+  // Format tool calls for readability
+  let toolCallsSection = '';
+  if (state.lastDebugInfo.toolCalls && state.lastDebugInfo.toolCalls.length > 0) {
+    toolCallsSection = '\n=== TOOL CALLS ===\n';
+    state.lastDebugInfo.toolCalls.forEach((call, i) => {
+      toolCallsSection += `\n--- Call ${i + 1}: ${call.tool} ---\n`;
+      toolCallsSection += `Input: ${JSON.stringify(call.input, null, 2)}\n`;
+      toolCallsSection += `Result: ${JSON.stringify(call.result, null, 2)}\n`;
+    });
+  }
+
+  const content = `=== FLUXX AI DEBUG INFO (Tool-Based Architecture) ===
+Generated: ${new Date().toISOString()}
+Session ID: ${state.sessionId || 'N/A'}
+
+=== STATS ===
+System Prompt Length: ${state.lastDebugInfo.systemPromptLength} chars
+Form Overview Length: ${state.lastDebugInfo.formOverviewLength} chars
+Tool-Use Iterations: ${state.lastDebugInfo.iterations}
+Tool Calls Made: ${state.lastDebugInfo.toolCallCount}
+
+=== USER MESSAGE ===
+${state.lastDebugInfo.userMessage}
+${toolCallsSection}
+=== FINAL CLAUDE RESPONSE ===
+${state.lastDebugInfo.finalResponse || 'N/A'}
+`;
+
+  const blob = new Blob([content], { type: 'text/plain' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `fluxx-ai-debug-${Date.now()}.txt`;
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
+// Keyboard shortcut: Ctrl+Shift+D to download debug info
+document.addEventListener('keydown', (e) => {
+  if (e.ctrlKey && e.shiftKey && e.key === 'D') {
+    e.preventDefault();
+    downloadDebugInfo();
+  }
+});
 
 // Start
 init();

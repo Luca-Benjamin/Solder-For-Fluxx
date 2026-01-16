@@ -614,40 +614,38 @@ async function applyAndUpload(operations, exportData) {
     updateLoadingText('Processing import...');
 
     // Step 6: Wait for the upload to process and look for success indicator
-    // Try multiple selectors as different Fluxx versions use different elements
-    const refreshSelectors = [
-      'a.refresh-dashboard',
-      'a[href*="refresh"]',
-      '.import-success a',
-      '.success a',
-      'a.btn-refresh'
-    ];
-
     let refreshLink = null;
     let uploadComplete = false;
     const startTime = Date.now();
-    const timeout = 20000;
+    const timeout = 30000; // Increased timeout
 
     while (Date.now() - startTime < timeout) {
-      // Check for refresh link
-      for (const selector of refreshSelectors) {
-        try {
-          refreshLink = document.querySelector(selector);
-          if (refreshLink) {
-            console.log('[Fluxx AI] Found refresh link with selector:', selector);
-            break;
-          }
-        } catch (e) {}
+      // Check for refresh-dashboard link (primary success indicator)
+      refreshLink = document.querySelector('a.refresh-dashboard');
+      if (refreshLink) {
+        console.log('[Fluxx AI] Found a.refresh-dashboard link');
+        break;
+      }
+
+      // Check for any link containing "Refresh" text
+      const allLinks = document.querySelectorAll('a');
+      for (const link of allLinks) {
+        const text = link.textContent?.toLowerCase() || '';
+        if (text.includes('refresh') && (text.includes('dashboard') || text.includes('your'))) {
+          console.log('[Fluxx AI] Found refresh link by text:', link.textContent);
+          refreshLink = link;
+          break;
+        }
       }
       if (refreshLink) break;
 
-      // Check for success text indicators in the modal/page
-      const modalText = document.querySelector('.reveal-modal, .modal, .import-panel, .body .show')?.innerText || '';
-      if (modalText.includes('Import successful') ||
-          modalText.includes('import complete') ||
-          modalText.includes('Successfully imported') ||
-          modalText.includes('Refresh to see')) {
-        console.log('[Fluxx AI] Found success text, proceeding with refresh');
+      // Check for success text anywhere on the page
+      const bodyText = document.body.innerText || '';
+      if (bodyText.includes('Refresh Your Dashboard') ||
+          bodyText.includes('Import successful') ||
+          bodyText.includes('import complete') ||
+          bodyText.includes('Successfully imported')) {
+        console.log('[Fluxx AI] Found success text in page');
         uploadComplete = true;
         break;
       }
@@ -676,6 +674,8 @@ async function applyAndUpload(operations, exportData) {
 
       await sleep(300);
     }
+
+    console.log('[Fluxx AI] Detection loop finished. refreshLink:', !!refreshLink, 'uploadComplete:', uploadComplete, 'elapsed:', Date.now() - startTime, 'ms');
 
     if (refreshLink || uploadComplete) {
       updateLoadingText('Refreshing page...');
@@ -1038,6 +1038,176 @@ function createModelAttribute(name, description, attributeType = 'string') {
   };
 }
 
+// Helper: Get regex patterns that match any shade of a color
+function getColorPatterns(colorName) {
+  const patterns = [];
+  const color = colorName.toLowerCase();
+
+  // CSS color keywords for each color family
+  const keywords = {
+    red: ['red', 'crimson', 'darkred', 'firebrick', 'indianred', 'maroon', 'brown'],
+    blue: ['blue', 'navy', 'darkblue', 'royalblue', 'steelblue', 'dodgerblue', 'cornflowerblue', 'deepskyblue', 'midnightblue'],
+    green: ['green', 'darkgreen', 'forestgreen', 'limegreen', 'seagreen', 'olive', 'teal'],
+    orange: ['orange', 'darkorange', 'coral', 'tomato', 'orangered'],
+    yellow: ['yellow', 'gold', 'khaki', 'goldenrod'],
+    purple: ['purple', 'violet', 'magenta', 'fuchsia', 'orchid', 'plum', 'indigo'],
+    gray: ['gray', 'grey', 'darkgray', 'darkgrey', 'lightgray', 'lightgrey', 'silver', 'dimgray', 'dimgrey'],
+    black: ['black'],
+    white: ['white', 'snow', 'ivory']
+  };
+
+  // Add keyword patterns
+  if (keywords[color]) {
+    for (const kw of keywords[color]) {
+      // Match color keyword in CSS (e.g., "color: red" or "color:red")
+      patterns.push(new RegExp(`(color\\s*:\\s*)${kw}\\b`, 'gi'));
+    }
+  }
+
+  // Add hex pattern that matches color range
+  // This regex will be replaced with a function-based approach
+  patterns.push({
+    type: 'hex',
+    color: color,
+    test: (hex) => isColorInFamily(hex, color)
+  });
+
+  // Add rgb pattern
+  patterns.push({
+    type: 'rgb',
+    color: color,
+    test: (r, g, b) => isRgbInFamily(r, g, b, color)
+  });
+
+  return patterns;
+}
+
+// Helper: Check if a hex color belongs to a color family
+function isColorInFamily(hex, family) {
+  // Parse hex to RGB
+  let r, g, b;
+  if (hex.length === 4) {
+    r = parseInt(hex[1] + hex[1], 16);
+    g = parseInt(hex[2] + hex[2], 16);
+    b = parseInt(hex[3] + hex[3], 16);
+  } else if (hex.length === 7) {
+    r = parseInt(hex.slice(1, 3), 16);
+    g = parseInt(hex.slice(3, 5), 16);
+    b = parseInt(hex.slice(5, 7), 16);
+  } else {
+    return false;
+  }
+  return isRgbInFamily(r, g, b, family);
+}
+
+// Helper: Check if RGB values belong to a color family
+function isRgbInFamily(r, g, b, family) {
+  const brightness = (r + g + b) / 3;
+  const max = Math.max(r, g, b);
+  const min = Math.min(r, g, b);
+  const saturation = max === 0 ? 0 : (max - min) / max;
+
+  switch (family) {
+    case 'red':
+      // Red: high red, low green, variable blue
+      return r > 150 && r > g * 1.5 && r > b * 1.2 && g < 150;
+    case 'blue':
+      // Blue: high blue, low red and green
+      return b > 150 && b > r * 1.3 && b > g * 1.1;
+    case 'green':
+      // Green: high green, low red and blue
+      return g > 150 && g > r * 1.2 && g > b * 1.2;
+    case 'orange':
+      // Orange: high red, medium green, low blue
+      return r > 180 && g > 80 && g < 180 && b < 100;
+    case 'yellow':
+      // Yellow: high red and green, low blue
+      return r > 180 && g > 180 && b < 120;
+    case 'purple':
+      // Purple: high red and blue, low green
+      return r > 100 && b > 100 && g < Math.min(r, b) * 0.8;
+    case 'gray':
+      // Gray: low saturation, medium brightness
+      return saturation < 0.2 && brightness > 50 && brightness < 220;
+    case 'black':
+      return brightness < 50;
+    case 'white':
+      return brightness > 220 && saturation < 0.1;
+    default:
+      return false;
+  }
+}
+
+// Helper: Get target color value
+function getTargetColor(colorName) {
+  const colors = {
+    red: '#cc0000',
+    blue: '#0066cc',
+    green: '#008800',
+    orange: '#ff6600',
+    yellow: '#ffcc00',
+    purple: '#9900cc',
+    gray: '#666666',
+    black: '#000000',
+    white: '#ffffff'
+  };
+  // If it's already a hex code, use it directly
+  if (colorName.startsWith('#')) {
+    return colorName;
+  }
+  return colors[colorName.toLowerCase()] || colorName;
+}
+
+// Helper: Replace colors in HTML string
+function replaceColorsInHtml(html, findColor, replaceColor) {
+  const targetColor = getTargetColor(replaceColor);
+  let result = html;
+
+  // Replace hex colors
+  result = result.replace(/#([0-9a-fA-F]{3}){1,2}\b/g, (match) => {
+    if (isColorInFamily(match, findColor)) {
+      return targetColor;
+    }
+    return match;
+  });
+
+  // Replace rgb/rgba colors
+  result = result.replace(/rgb(a?)\s*\(\s*(\d+)\s*,\s*(\d+)\s*,\s*(\d+)([^)]*)\)/gi, (match, a, r, g, b, rest) => {
+    if (isRgbInFamily(parseInt(r), parseInt(g), parseInt(b), findColor)) {
+      // Convert target to rgb format if needed
+      if (targetColor.startsWith('#')) {
+        const tr = parseInt(targetColor.slice(1, 3), 16);
+        const tg = parseInt(targetColor.slice(3, 5), 16);
+        const tb = parseInt(targetColor.slice(5, 7), 16);
+        return a ? `rgba(${tr}, ${tg}, ${tb}${rest})` : `rgb(${tr}, ${tg}, ${tb})`;
+      }
+      return targetColor;
+    }
+    return match;
+  });
+
+  // Replace color keywords
+  const keywords = {
+    red: ['red', 'crimson', 'darkred', 'firebrick', 'indianred', 'maroon'],
+    blue: ['blue', 'navy', 'darkblue', 'royalblue', 'steelblue', 'dodgerblue'],
+    green: ['green', 'darkgreen', 'forestgreen', 'limegreen', 'seagreen'],
+    orange: ['orange', 'darkorange', 'coral', 'tomato'],
+    yellow: ['yellow', 'gold', 'khaki'],
+    purple: ['purple', 'violet', 'magenta', 'fuchsia'],
+    gray: ['gray', 'grey', 'darkgray', 'lightgray', 'silver'],
+  };
+
+  if (keywords[findColor]) {
+    for (const kw of keywords[findColor]) {
+      // Match in CSS context (after color: or background-color: etc.)
+      const regex = new RegExp(`((?:color|background-color|border-color)\\s*:\\s*)${kw}\\b`, 'gi');
+      result = result.replace(regex, `$1${targetColor}`);
+    }
+  }
+
+  return result;
+}
+
 function applyOperations(exportData, operations) {
   if (!Array.isArray(operations)) {
     throw new Error('Operations must be an array');
@@ -1248,6 +1418,29 @@ function applyOperations(exportData, operations) {
         const idx = result.array.findIndex(e => e.uid === targetUid);
         if (idx !== -1) {
           result.array.splice(idx, 1);
+        }
+      }
+
+    } else if (op.type === 'bulk_replace') {
+      // Bulk find/replace in HTML content for multiple elements
+      const uids = op.uids || [];
+      const findColor = op.find_color;  // e.g., "red" - will match any red-ish color
+      const replaceColor = op.replace_color;  // e.g., "blue" or "#0066CC"
+      const findStr = op.find;
+      const replaceStr = op.replace;
+
+      for (const uid of uids) {
+        const el = findElementByUid(elements, uid);
+        if (el && el.config?.text) {
+          // Color-aware replacement (matches hex, rgb, and keywords)
+          if (findColor && replaceColor) {
+            el.config.text = replaceColorsInHtml(el.config.text, findColor, replaceColor);
+          }
+          // Literal string replacement
+          else if (findStr && replaceStr) {
+            const regex = new RegExp(findStr.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'gi');
+            el.config.text = el.config.text.replace(regex, replaceStr);
+          }
         }
       }
     }

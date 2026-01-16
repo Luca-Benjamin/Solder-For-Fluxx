@@ -266,6 +266,48 @@ body {
 .op-type.edit { background: #fef3c7; color: #92400e; }
 .op-type.move { background: #dbeafe; color: #1e40af; }
 .op-type.delete { background: #fee2e2; color: #dc2626; }
+.op-type.bulk_replace { background: #f3e8ff; color: #7c3aed; }
+
+/* Bulk operation expandable details */
+.bulk-details {
+  margin-top: 8px;
+  font-size: 11px;
+}
+
+.bulk-details summary {
+  cursor: pointer;
+  color: #7c3aed;
+  font-weight: 500;
+}
+
+.bulk-details summary:hover {
+  text-decoration: underline;
+}
+
+.bulk-uid-list {
+  margin: 6px 0 0 0;
+  padding: 0;
+  list-style: none;
+  max-height: 150px;
+  overflow-y: auto;
+  background: #faf5ff;
+  border-radius: 4px;
+  padding: 6px;
+}
+
+.bulk-uid {
+  font-family: monospace;
+  font-size: 10px;
+  color: #6b7280;
+  padding: 2px 4px;
+}
+
+.bulk-more {
+  font-size: 10px;
+  color: #9ca3af;
+  font-style: italic;
+  margin-top: 4px;
+}
 
 .op-details {
   flex: 1;
