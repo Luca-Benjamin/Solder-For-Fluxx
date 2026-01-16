@@ -552,6 +552,8 @@ function formatOperationDetails(op) {
       details.summary = `Replace "${op.find}" → "${op.replace}" (${count} elements)`;
     } else if (op.set_required !== undefined) {
       details.summary = `Set ${op.set_required ? 'required' : 'optional'} (${count} fields)`;
+    } else if (op.set_read_only !== undefined) {
+      details.summary = `Set ${op.set_read_only ? 'read-only' : 'editable'} (${count} fields)`;
     } else {
       details.summary = `Bulk update (${count} elements)`;
     }

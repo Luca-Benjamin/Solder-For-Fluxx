@@ -1442,6 +1442,7 @@ function applyOperations(exportData, operations) {
       const findStr = op.find;
       const replaceStr = op.replace;
       const setRequired = op.set_required;  // true or false
+      const setReadOnly = op.set_read_only;  // true or false
 
       for (const uid of uids) {
         const el = findElementByUid(elements, uid);
@@ -1452,6 +1453,11 @@ function applyOperations(exportData, operations) {
         // Set required on multiple fields
         if (setRequired !== undefined) {
           el.config.required = setRequired;
+        }
+
+        // Set read-only on multiple fields
+        if (setReadOnly !== undefined) {
+          el.config.read_only = setReadOnly;
         }
 
         // Color-aware replacement (matches hex, rgb, and keywords)
