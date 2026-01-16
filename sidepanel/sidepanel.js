@@ -482,6 +482,7 @@ function formatOperationDetails(op) {
     if (op.label !== undefined) details.changes.push(`Label → "${op.label}"`);
     if (op.content !== undefined && typeof op.content === 'string') details.changes.push(`Content → "${op.content.substring(0, 50)}${op.content.length > 50 ? '...' : ''}"`);
     if (op.required !== undefined) details.changes.push(op.required ? 'Set required' : 'Set optional');
+    if (op.read_only !== undefined) details.changes.push(op.read_only ? 'Set read-only' : 'Set editable');
 
     // Config changes
     if (op.config) {
@@ -554,6 +555,16 @@ function formatOperationDetails(op) {
       details.summary = `Set ${op.set_required ? 'required' : 'optional'} (${count} fields)`;
     } else if (op.set_read_only !== undefined) {
       details.summary = `Set ${op.set_read_only ? 'read-only' : 'editable'} (${count} fields)`;
+    } else if (op.set_hidden !== undefined) {
+      details.summary = `${op.set_hidden ? 'Hide' : 'Show'} (${count} elements)`;
+    } else if (op.set_collapsible !== undefined) {
+      details.summary = `Set ${op.set_collapsible ? 'collapsible' : 'non-collapsible'} (${count} groups)`;
+    } else if (op.set_show_in_toc !== undefined) {
+      details.summary = `${op.set_show_in_toc ? 'Add to' : 'Remove from'} TOC (${count} groups)`;
+    } else if (op.set_default_open !== undefined) {
+      details.summary = `Set default ${op.set_default_open ? 'open' : 'closed'} (${count} groups)`;
+    } else if (op.set_hide_label !== undefined) {
+      details.summary = `${op.set_hide_label ? 'Hide' : 'Show'} labels (${count} elements)`;
     } else {
       details.summary = `Bulk update (${count} elements)`;
     }

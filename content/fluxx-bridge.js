@@ -1315,6 +1315,11 @@ function applyOperations(exportData, operations) {
           el.config.required = op.required;
         }
 
+        // Read-only change (for fields)
+        if (op.read_only !== undefined) {
+          el.config.read_only = op.read_only;
+        }
+
         // Text content change
         if (op.content && el.element_type === 'text') {
           el.config.text = op.content;
@@ -1443,6 +1448,11 @@ function applyOperations(exportData, operations) {
       const replaceStr = op.replace;
       const setRequired = op.set_required;  // true or false
       const setReadOnly = op.set_read_only;  // true or false
+      const setHidden = op.set_hidden;  // true or false
+      const setCollapsible = op.set_collapsible;  // true or false
+      const setShowInToc = op.set_show_in_toc;  // true or false
+      const setDefaultOpen = op.set_default_open;  // true or false
+      const setHideLabel = op.set_hide_label;  // true or false
 
       for (const uid of uids) {
         const el = findElementByUid(elements, uid);
@@ -1458,6 +1468,33 @@ function applyOperations(exportData, operations) {
         // Set read-only on multiple fields
         if (setReadOnly !== undefined) {
           el.config.read_only = setReadOnly;
+        }
+
+        // Set hidden on multiple elements (affects both edit and view visibility)
+        if (setHidden !== undefined) {
+          el.visibility = el.visibility || {};
+          el.visibility.visible_form = !setHidden;
+          el.visibility.visible_show = !setHidden;
+        }
+
+        // Set collapsible on groups
+        if (setCollapsible !== undefined && el.element_type === 'group') {
+          el.config.collapsible = setCollapsible;
+        }
+
+        // Set show_in_toc on groups
+        if (setShowInToc !== undefined && el.element_type === 'group') {
+          el.config.show_in_toc = setShowInToc;
+        }
+
+        // Set default_open on groups
+        if (setDefaultOpen !== undefined && el.element_type === 'group') {
+          el.config.default_open = setDefaultOpen;
+        }
+
+        // Set hide_label on elements
+        if (setHideLabel !== undefined) {
+          el.config.hide_label = setHideLabel;
         }
 
         // Color-aware replacement (matches hex, rgb, and keywords)
