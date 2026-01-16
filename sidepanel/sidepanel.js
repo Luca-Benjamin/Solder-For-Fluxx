@@ -327,14 +327,30 @@ async function sendMessage() {
 // Handle document upload for form generation
 async function handleDocumentUpload(e) {
   const file = e.target.files[0];
-  if (!file || state.isLoading || !state.connected) {
-    e.target.value = ''; // Reset input
+  if (!file) {
+    e.target.value = '';
     return;
   }
 
-  // Validate file type
+  // Check state and give feedback
+  if (!state.connected) {
+    addMessage('error', 'Please connect to a Fluxx form first before uploading a document.');
+    e.target.value = '';
+    return;
+  }
+
+  if (state.isLoading) {
+    addMessage('error', 'Please wait for the current operation to complete.');
+    e.target.value = '';
+    return;
+  }
+
+  // Validate file type - check both mimetype AND extension as fallback
   const validTypes = ['application/pdf', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document', 'application/msword'];
-  if (!validTypes.includes(file.type)) {
+  const validExtensions = ['.pdf', '.doc', '.docx'];
+  const fileExtension = file.name.toLowerCase().slice(file.name.lastIndexOf('.'));
+
+  if (!validTypes.includes(file.type) && !validExtensions.includes(fileExtension)) {
     addMessage('error', 'Please upload a PDF or Word document (.pdf, .doc, .docx)');
     e.target.value = '';
     return;
