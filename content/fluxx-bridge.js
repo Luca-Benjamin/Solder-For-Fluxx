@@ -1633,6 +1633,18 @@ function applyOperations(exportData, operations) {
     }
   }
 
+  // Update the form view name with current timestamp
+  if (data.name) {
+    const now = new Date();
+    const timestamp = now.toISOString().replace('T', ' ').substring(0, 19);
+    // Replace "Default" with timestamp, or append timestamp if no "Default"
+    if (data.name.includes('Default')) {
+      data.name = data.name.replace('Default', timestamp);
+    } else {
+      data.name = data.name + ' ' + timestamp;
+    }
+  }
+
   return data;
 }
 
