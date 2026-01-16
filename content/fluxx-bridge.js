@@ -1026,7 +1026,7 @@ function createAttributeElement(fieldName, label, options = {}) {
   };
 }
 
-function createModelAttribute(name, description, attributeType = 'string') {
+function createModelAttribute(name, description, attributeType = 'string', options = {}) {
   return {
     created_at: new Date().toISOString(),
     updated_at: new Date().toISOString(),
@@ -1034,7 +1034,7 @@ function createModelAttribute(name, description, attributeType = 'string') {
     description: description || name,
     model_type: 'GrantRequest',
     attribute_type: attributeType,
-    multi_allowed: false,
+    multi_allowed: options.multi_allowed || false,
     deleted_at: null,
     value_model_type: null,
     include_in_export: true,
@@ -1043,6 +1043,29 @@ function createModelAttribute(name, description, attributeType = 'string') {
     force_dropdown: false,
     translatable: false,
     model_type_enum: 98
+  };
+}
+
+function createModelAttributeValue(fieldName, value, displayOrder) {
+  return {
+    created_at: new Date().toISOString(),
+    updated_at: new Date().toISOString(),
+    description: value,      // Display text
+    value: value,            // Stored value
+    display_order: displayOrder,
+    deleted_at: null,
+    migrate_id: null,
+    retired: false,
+    related_model_type: null,
+    related_model_id: null,
+    migrate_source_name: null,
+    lft_value: null,
+    rgt_value: null,
+    dep_value: null,
+    model_attributes: {
+      name: fieldName,
+      model_type: 'GrantRequest'
+    }
   };
 }
 
@@ -1242,6 +1265,12 @@ function applyOperations(exportData, operations) {
   }
   const modelAttrs = data.records.ModelAttribute;
 
+  // Ensure ModelAttributeValue array exists (for select field choices)
+  if (!data.records.ModelAttributeValue) {
+    data.records.ModelAttributeValue = [];
+  }
+  const modelAttrValues = data.records.ModelAttributeValue;
+
   const allWorkflowStates = (data.records.MachineState || []).map(s => s.name);
   const aliases = {};
 
@@ -1271,9 +1300,29 @@ function applyOperations(exportData, operations) {
         });
       } else if (op.element_type === 'field') {
         const existingAttr = modelAttrs.find(a => a.name === op.field_name);
+
+        // Handle select/multi_select field types
+        const isSelect = op.field_type === 'select';
+        const isMultiSelect = op.field_type === 'multi_select';
+
         if (!existingAttr) {
-          modelAttrs.push(createModelAttribute(op.field_name, op.field_name, op.field_type || 'string'));
+          if (isSelect || isMultiSelect) {
+            // Select fields use multi_value attribute type
+            modelAttrs.push(createModelAttribute(op.field_name, op.field_name, 'multi_value', {
+              multi_allowed: isMultiSelect
+            }));
+
+            // Add choices as ModelAttributeValue entries
+            if (op.choices && Array.isArray(op.choices)) {
+              op.choices.forEach((choice, index) => {
+                modelAttrValues.push(createModelAttributeValue(op.field_name, choice, index + 1));
+              });
+            }
+          } else {
+            modelAttrs.push(createModelAttribute(op.field_name, op.field_name, op.field_type || 'string'));
+          }
         }
+
         newElement = createAttributeElement(op.field_name, op.label, {
           config: op.config,
           visibility: op.visibility
