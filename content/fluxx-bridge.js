@@ -1224,6 +1224,7 @@ function applyOperations(exportData, operations) {
   const data = JSON.parse(JSON.stringify(exportData));
   const elements = data.records.Stencil[0].json.elements;
   const modelAttrs = data.records.ModelAttribute;
+  const allWorkflowStates = (data.records.MachineState || []).map(s => s.name);
   const aliases = {};
 
   for (const op of operations) {
@@ -1315,9 +1316,16 @@ function applyOperations(exportData, operations) {
           el.config.required = op.required;
         }
 
-        // Read-only change (for fields)
+        // Read-only change (for fields) - uses visibility.read_only_states
         if (op.read_only !== undefined) {
-          el.config.read_only = op.read_only;
+          el.visibility = el.visibility || {};
+          if (op.read_only) {
+            // Make read-only in ALL workflow states
+            el.visibility.read_only_states = [...allWorkflowStates];
+          } else {
+            // Make editable - clear read_only_states
+            el.visibility.read_only_states = [];
+          }
         }
 
         // Text content change
@@ -1465,9 +1473,14 @@ function applyOperations(exportData, operations) {
           el.config.required = setRequired;
         }
 
-        // Set read-only on multiple fields
+        // Set read-only on multiple fields - uses visibility.read_only_states
         if (setReadOnly !== undefined) {
-          el.config.read_only = setReadOnly;
+          el.visibility = el.visibility || {};
+          if (setReadOnly) {
+            el.visibility.read_only_states = [...allWorkflowStates];
+          } else {
+            el.visibility.read_only_states = [];
+          }
         }
 
         // Set hidden on multiple elements (affects both edit and view visibility)
