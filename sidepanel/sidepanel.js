@@ -418,15 +418,15 @@ function showOperationsPreview(operations) {
 
     // Expandable section for bulk operations
     let bulkHtml = '';
-    if (details.isBulk && details.bulkUids.length > 0) {
-      const uidList = details.bulkUids.slice(0, 20).map(uid =>
-        `<li class="bulk-uid">${escapeHtml(uid.substring(0, 12))}...</li>`
+    if (details.isBulk && details.bulkLabels && details.bulkLabels.length > 0) {
+      const labelList = details.bulkLabels.slice(0, 20).map(label =>
+        `<li class="bulk-uid">${escapeHtml(label)}</li>`
       ).join('');
-      const moreCount = details.bulkUids.length > 20 ? details.bulkUids.length - 20 : 0;
+      const moreCount = details.bulkLabels.length > 20 ? details.bulkLabels.length - 20 : 0;
       bulkHtml = `
         <details class="bulk-details">
-          <summary>Show ${details.bulkUids.length} affected elements</summary>
-          <ul class="bulk-uid-list">${uidList}</ul>
+          <summary>Show ${details.bulkLabels.length} affected elements</summary>
+          <ul class="bulk-uid-list">${labelList}</ul>
           ${moreCount > 0 ? `<div class="bulk-more">...and ${moreCount} more</div>` : ''}
         </details>
       `;
@@ -475,11 +475,13 @@ function formatOperationDetails(op) {
 
   } else if (op.type === 'edit') {
     // EDIT operation
-    details.summary = `Edit element (${op.uid?.substring(0, 8)}...)`;
+    const name = op._label || `(${op.uid?.substring(0, 8)}...)`;
+    details.summary = `Edit: ${name}`;
 
-    // Label/content changes
+    // Label/content/required changes
     if (op.label !== undefined) details.changes.push(`Label → "${op.label}"`);
     if (op.content !== undefined) details.changes.push(`Content → "${op.content.substring(0, 50)}${op.content.length > 50 ? '...' : ''}"`);
+    if (op.required !== undefined) details.changes.push(op.required ? 'Set required' : 'Set optional');
 
     // Config changes
     if (op.config) {
@@ -531,12 +533,14 @@ function formatOperationDetails(op) {
 
   } else if (op.type === 'move') {
     // MOVE operation
-    details.summary = `Move element (${op.uid?.substring(0, 8)}...)`;
+    const name = op._label || `(${op.uid?.substring(0, 8)}...)`;
+    details.summary = `Move: ${name}`;
     details.changes.push(`Position: ${op.position} ${op.target?.startsWith('$') ? op.target : `(${op.target?.substring(0, 8)}...)`}`);
 
   } else if (op.type === 'delete') {
     // DELETE operation
-    details.summary = `Delete element (${op.uid?.substring(0, 8)}...)`;
+    const name = op._label || `(${op.uid?.substring(0, 8)}...)`;
+    details.summary = `Delete: ${name}`;
     details.changes.push('⚠️ This will also delete all children');
 
   } else if (op.type === 'bulk_replace') {
@@ -546,11 +550,13 @@ function formatOperationDetails(op) {
       details.summary = `Change ${op.find_color} → ${op.replace_color} (${count} elements)`;
     } else if (op.find && op.replace) {
       details.summary = `Replace "${op.find}" → "${op.replace}" (${count} elements)`;
+    } else if (op.set_required !== undefined) {
+      details.summary = `Set ${op.set_required ? 'required' : 'optional'} (${count} fields)`;
     } else {
-      details.summary = `Bulk replace (${count} elements)`;
+      details.summary = `Bulk update (${count} elements)`;
     }
     details.isBulk = true;
-    details.bulkUids = Array.isArray(op.uids) ? op.uids : [];
+    details.bulkLabels = Array.isArray(op._labels) ? op._labels : [];
 
   } else {
     // Unknown operation type
