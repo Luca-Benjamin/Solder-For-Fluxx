@@ -1026,13 +1026,13 @@ function createAttributeElement(fieldName, label, options = {}) {
   };
 }
 
-function createModelAttribute(name, description, attributeType = 'string', options = {}) {
+function createModelAttribute(name, description, attributeType = 'string', modelType = 'GrantRequest', options = {}) {
   return {
     created_at: new Date().toISOString(),
     updated_at: new Date().toISOString(),
     name: name,
     description: description || name,
-    model_type: 'GrantRequest',
+    model_type: modelType,
     attribute_type: attributeType,
     multi_allowed: options.multi_allowed || false,
     deleted_at: null,
@@ -1046,7 +1046,7 @@ function createModelAttribute(name, description, attributeType = 'string', optio
   };
 }
 
-function createModelAttributeValue(fieldName, value, displayOrder) {
+function createModelAttributeValue(fieldName, value, displayOrder, modelType = 'GrantRequest') {
   return {
     created_at: new Date().toISOString(),
     updated_at: new Date().toISOString(),
@@ -1064,7 +1064,7 @@ function createModelAttributeValue(fieldName, value, displayOrder) {
     dep_value: null,
     model_attributes: {
       name: fieldName,
-      model_type: 'GrantRequest'
+      model_type: modelType
     }
   };
 }
@@ -1259,6 +1259,9 @@ function applyOperations(exportData, operations) {
   }
   const elements = data.records.Stencil[0].json.elements;
 
+  // Get the model type from the Stencil (e.g., 'GrantRequest', 'RequestReport', etc.)
+  const modelType = data.records.Stencil[0].model_type || 'GrantRequest';
+
   // Ensure ModelAttribute array exists (some exports may not have it)
   if (!data.records.ModelAttribute) {
     data.records.ModelAttribute = [];
@@ -1308,7 +1311,7 @@ function applyOperations(exportData, operations) {
         if (!existingAttr) {
           if (isSelect || isMultiSelect) {
             // Select fields use multi_value attribute type
-            modelAttrs.push(createModelAttribute(op.field_name, op.field_name, 'multi_value', {
+            modelAttrs.push(createModelAttribute(op.field_name, op.field_name, 'multi_value', modelType, {
               multi_allowed: isMultiSelect
             }));
 
@@ -1317,11 +1320,11 @@ function applyOperations(exportData, operations) {
             // Store choices info for potential API creation
             if (op.choices && Array.isArray(op.choices)) {
               op.choices.forEach((choice, index) => {
-                modelAttrValues.push(createModelAttributeValue(op.field_name, choice, index + 1));
+                modelAttrValues.push(createModelAttributeValue(op.field_name, choice, index + 1, modelType));
               });
             }
           } else {
-            modelAttrs.push(createModelAttribute(op.field_name, op.field_name, op.field_type || 'string'));
+            modelAttrs.push(createModelAttribute(op.field_name, op.field_name, op.field_type || 'string', modelType));
           }
         }
 
