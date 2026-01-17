@@ -1329,6 +1329,7 @@ function applyOperations(exportData, operations) {
         }
 
         newElement = createAttributeElement(op.field_name, op.label, {
+          required: op.required,
           config: op.config,
           visibility: op.visibility
         });
